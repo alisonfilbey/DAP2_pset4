@@ -1,0 +1,52 @@
+---
+title: "PS4: Spatial"
+author: "Peter Ganong, Maggie Shi, and Fatima Irfan" 
+date: "today"
+format: pdf
+geometry: margin=1in
+fontsize: 12pt
+execute:
+  eval: false
+  echo: true
+---
+
+**PS4:** Due Sat Nov 2 at 5:00PM Central. Worth 100 points. 
+
+## Style Points (10 pts)
+
+## Submission Steps (10 pts)
+
+## Download and explore the Provider of Services (POS) file (10 pts)
+
+1. 
+2.
+3. 
+4. 
+
+## Identify hospital closures in POS file (15 pts) (*)
+
+1. 
+2. 
+3. 
+
+## Download Census zip code shapefile (10 pt) 
+
+1. 
+2. 
+
+## Calculate zip code’s distance to the nearest hospital (20 pts) (*)
+
+1. 
+2. 
+3. 
+4. 
+5. 
+
+## Effects of closures on access in Texas (15 pts)
+
+1. 
+2. 
+3. 
+4. 
+
+## Reflecting on the exercise (10 pts) 
