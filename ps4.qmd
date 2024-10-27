@@ -15,8 +15,33 @@ execute:
 ## Style Points (10 pts)
 
 ## Submission Steps (10 pts)
+1. This problem set is a paired problem set.
+2. Play paper, scissors, rock to determine who goes first. Call that person Partner 1.
+• Partner 1 (name and cnet ID): Alison Filbey afilbey
+• Partner 2 (name and cnet ID): Claire Conzelmann cconzelmann
+3. Partner 1 will accept the ps4 and then share the link it creates with their partner.
+You can only share it with one partner so you will not be able to change it after your
+partner has accepted.
+4. “This submission is our work alone and complies with the 30538 integrity policy.” Add your initials to indicate your agreement: **CC** **AF**
+5. “I have uploaded the names of anyone else other than my partner and I worked with
+on the problem set here” (1 point)
+6. Late coins used this pset: **0** Late coins left after submission: **4**
+7. Knit your ps4.qmd to an PDF file to make ps4.pdf,
+• The PDF should not be more than 25 pages. Use head() and re-size figures when
+appropriate.
+8. (Partner 1): push ps4.qmd and ps4.pdf to your github repo.
+9. (Partner 1): submit ps4.pdf via Gradescope. Add your partner on Gradescope.
+10. (Partner 1): tag your submission in Gradescope
 
 ## Download and explore the Provider of Services (POS) file (10 pts)
+
+```{python}
+#libraries
+import pandas as pd
+import altair as alt
+alt.data_transformers.enable("vegafusion")
+import numpy as np
+```
 
 1. (Partner 1) This is a fairly large dataset and we won’t be using most of the variables. Read through the rest of the problem set and look through the data dictionary to identify which variables you will need to complete the exercise, and use the tool on data.cms.gov into restrict to those variables (“Manage Columns”) before exporting(“Export”). Download this for 2016 and call it pos2016.csv. What are the variables you pulled?
 
@@ -36,9 +61,6 @@ The variables I pulled as potentially useful are as follows:
 
 2. (Partner 1) Import your pos2016.csv file. We want to focus on short-term hospitals. These are identified as facilities with provider type code 01 and subtype code 01. Subset your data to these facilities. How many hospitals are reported in this data? Does this number make sense? Cross-reference with other sources and cite the number you compared it to. If it differs, why do you think it could differ?
 ```{python}
-#Importing Pandas
-import pandas as pd
-
 #Reading in 2016 data and filtering for short-term hospitals
 pos2016 = pd.read_csv('Data/POS_File_Hospital_Non_Hospital_Facilities_Q4_2016.csv')
 pos2016 = pos2016[(pos2016["PRVDR_CTGRY_SBTYP_CD"] == 1) & (pos2016["PRVDR_CTGRY_CD"] == 1)]
@@ -50,9 +72,6 @@ The dataset has 7,245 observations. Upon first glance, this number seems reasona
 
 3. (Partner 1) Repeat the previous 3 steps with 2017Q4, 2018Q4, and 2019Q4 and then append them together. Plot the number of observations in your dataset by year.
 ```{python}
-import altair as alt
-alt.data_transformers.enable("vegafusion")
-
 #Reading the datasets and creating a columns called year
 pos2016['year']=2016
 #2017
@@ -100,8 +119,96 @@ Comparing plot1 and plot2, it looks as if even after we restrict our number of h
 ## Identify hospital closures in POS file (15 pts) (*)
 
 1. 
+
+```{python}
+#create indicator for hospitals acitve in 2016
+pos["active_2016"] = np.where(
+  (pos["year"]==2016) & (pos["PGM_TRMNTN_CD"]==0), 1, 0)
+pos["active_2016"] = pos.groupby("PRVDR_NUM")["active_2016"].transform("max")
+
+#find max year each hospital appears as active in dataset
+pos["max_year"] = pos.groupby("PRVDR_NUM")["year"].transform("max")
+
+#create indicator if hospital is ever not active
+pos["ever_inactive"] = np.where(
+  pos.groupby("PRVDR_NUM")["PGM_TRMNTN_CD"].transform("max")!=0, 1, 0)
+
+#keep hospitals active in 2016 and no longer active
+inactive_hospitals = pos.loc[(pos["active_2016"]==1) & (pos["ever_inactive"]==1)]
+
+#groupby hospital and status 
+grouped = inactive_hospitals.groupby(
+  ["PRVDR_NUM", "PGM_TRMNTN_CD"])["year"].min().reset_index()
+
+#drop active rows 
+grouped = grouped.loc[grouped["PGM_TRMNTN_CD"] != 0]
+
+#rename year
+grouped = grouped.rename({"year":"inactive_year"}, axis=1).drop(
+  "PGM_TRMNTN_CD", axis=1)
+
+#merge inactive year into inactive hospitals df
+inactive_hospitals= pd.merge(inactive_hospitals, grouped, on="PRVDR_NUM", how="left")
+
+#keep requested variables
+inactive_hospitals = inactive_hospitals[[
+  "FAC_NAME", "ZIP_CD", "inactive_year", "PRVDR_NUM", "year"]]
+
+#count number of hospitals that went inactive
+len(inactive_hospitals["PRVDR_NUM"].unique())
+```
+
+There are 174 hospitals that became inactive at some point between 2016 and 2019.
+
 2. 
+
+```{python}
+#drop duplicates
+inactive_hospitals_nodup = inactive_hospitals.drop_duplicates(subset="PRVDR_NUM")
+
+#sort by facility name and print first 10 rows
+inactive_hospitals_nodup[["FAC_NAME", "inactive_year"]].sort_values(
+  "FAC_NAME").head(10)
+```
+
 3. 
+
+```{python}
+#calculate number of active hospitals in each zipcode by year
+active_count = pos[pos["PGM_TRMNTN_CD"] == 0]
+active_count = active_count.groupby(["ZIP_CD", "year"]).size().reset_index(
+  name="n_fac_zip")
+
+#merge the counts back into the original df and the inactive df
+pos = pd.merge(pos, active_count, on=["ZIP_CD", "year"], how="left")
+inactive_hospitals = pd.merge(
+  inactive_hospitals, active_count, on=["ZIP_CD", "year"], how="left")
+
+#replace missing n active hospitals with zero
+pos["n_fac_zip"].fillna(0, inplace=True)
+inactive_hospitals["n_fac_zip"].fillna(0, inplace=True)
+
+#create lag for number of hospitals in each zipcode
+#I googled how to create a lag of a variable and followed this example
+#https://discuss.datasciencedojo.com/t/how-to-create-lags-and-leads-of-a-column/1023
+inactive_hospitals = inactive_hospitals.sort_values(by=["PRVDR_NUM", "year"])
+inactive_hospitals["lag_n_fac_zip"] = inactive_hospitals.groupby(
+  "PRVDR_NUM")["n_fac_zip"].shift(1)
+
+#keep hospitals in zipcodes that saw decrease in number of hospitals after closure
+inactive_hospitals = inactive_hospitals.loc[
+  (inactive_hospitals["year"]==inactive_hospitals["inactive_year"]) &
+  (inactive_hospitals["lag_n_fac_zip"] > inactive_hospitals["n_fac_zip"])]
+```
+
+**i** Before this correction, there were 174 hospitals that had a suspected closure between 2016 and 2019. After this correction, there are 167 hospitals that had a suspected closure, meaning there are 7 suspected mergers/aquisitions. 
+
+**ii** 
+```{python}
+#sort by facility name and print first 10 rows
+inactive_hospitals[["FAC_NAME", "inactive_year"]].sort_values(
+  "FAC_NAME").head(10)
+```
 
 ## Download Census zip code shapefile (10 pt) 
 
